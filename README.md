@@ -27,7 +27,8 @@ Claude Code CLI + claude-code-router (cc switch) + 网页终端，跑在 Cloady 
 
 - 主用：`gemini-3.5-flash`（Gemini provider，直连 Google API）。
 - 备用：`cohere/north-mini-code:free`（OpenRouter 免费）。
-- 换模型改本仓库的 `router-config.json` 里的模型名，改完在终端里跑 `ccr restart`。
+- 换模型改 `seed-profile.mjs` 里的 `PRIMARY_MODEL` / `FALLBACK_MODEL`，改完重新部署；容器启动时会自动把新模型写进数据库。也可以在终端里跑 `ccr ui` 打开管理界面直接改 profile。
+- `code` profile 不存在配置文件里：CCR v3 的配置存在数据库（`~/.claude-code-router/config.sqlite`），容器每次启动时 `entrypoint.sh` 都会跑 `seed-profile.mjs` 把它写进去；`router-config.json` 只是旧版 v1 格式，首次启动时用来迁迁移出供应商，之后改它不再生效。
 
 ## 诚实说明
 
