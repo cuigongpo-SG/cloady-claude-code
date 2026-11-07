@@ -8,4 +8,4 @@ if [ -z "$OPENROUTER_API_KEY" ]; then
   echo "提示：OPENROUTER_API_KEY 未设置。先在 Cloady 变量里加上 key 再用 ccr code，否则路由器没有上游可用。"
 fi
 echo "Claude Code 容器已启动。打开网页终端，登录后运行：ccr code"
-exec ttyd -p 8080 -c "${TTYD_USER}:${TTYD_PASS}" bash
+exec ttyd -W -p 8080 -c "${TTYD_USER}:${TTYD_PASS}" bash
