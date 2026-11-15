@@ -35,8 +35,10 @@ heartbeat() {
   NOW="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
   printf '{\n  "agent": "claudecode-cloady",\n  "time": "%s",\n  "status": "%s",\n  "task": "%s",\n  "poll_secs": %s\n}\n' "$NOW" "$1" "$2" "$POLL_SECS" > "$DIR/handoff/heartbeat-claudecode.json"
   cd "$DIR" || return 0
-  if ! git diff --quiet -- handoff/heartbeat-claudecode.json 2>/dev/null; then
-    git add handoff/heartbeat-claudecode.json
+  # 注意：git diff --quiet 对未跟踪的新文件返回 0（无差异），心跳文件第一次出现时
+  # 必须先 git add 再用 --cached 判断，否则全新部署后心跳永远推不上去。
+  git add handoff/heartbeat-claudecode.json 2>/dev/null
+  if ! git diff --cached --quiet -- handoff/heartbeat-claudecode.json 2>/dev/null; then
     git commit -qm "heartbeat claudecode $NOW ($1)" 2>/dev/null || true
     git push -q origin main 2>/dev/null || log "心跳 push 失败，下一轮重试"
   fi
@@ -94,9 +96,15 @@ while true; do
 
   cd "$WORK/$NAME" || { sleep "$POLL_SECS"; continue; }
   START="$(date +%s)"
-  # -p 非交互模式；--dangerously-skip-permissions 只限这个一次性容器，
-  # 容器里没有任何生产密钥之外的东西，产物只写进工作目录
-  timeout "$TASK_TIMEOUT" ccr code -p --dangerously-skip-permissions "$PROMPT" > "$WORK/$NAME/run.log" 2>&1
+  # -p 非交互模式。注意：--dangerously-skip-permissions 不能以 root 身份用，
+  # Claude Code 会直接拒绝（退出码 1），所以改用 --permission-mode acceptEdits，
+  # 并预先在 /root/.claude/settings.json 里放行常用工具，避免非交互运行时卡在权限确认上。
+  # 只限这个一次性容器：容器里没有任何生产密钥之外的东西，产物只写进工作目录。
+  mkdir -p /root/.claude
+  if [ ! -f /root/.claude/settings.json ]; then
+    printf '{\n  "permissions": {\n    "allow": ["Read", "Write", "Edit", "Glob", "Grep", "Bash", "TodoWrite"]\n  }\n}\n' > /root/.claude/settings.json
+  fi
+  timeout "$TASK_TIMEOUT" ccr code -p --permission-mode acceptEdits "$PROMPT" > "$WORK/$NAME/run.log" 2>&1
   RC=$?
   END="$(date +%s)"
   MINS=$(( (END - START) / 60 ))
