@@ -32,7 +32,7 @@ import { homedir } from "node:os";
 import path from "node:path";
 
 const PROFILE_NAME = "code";
-const PRIMARY_MODEL = "agnes/agnes-3.0-flash";
+const PRIMARY_MODEL = "agnes/agnes-2.5-flash";
 const FALLBACK_MODEL = "gemini/gemini-3.5-flash";
 // 种子 profile 的固定 id（UUID v4 形式）。重复运行时复用同一条 profile；
 // 如果用户已在管理界面建过名叫 code 的 profile，则保留它原来的 id。
