@@ -112,8 +112,26 @@ while true; do
   cd "$DIR" || { sleep "$POLL_SECS"; continue; }
   OUT="handoff/inbox-claudecode/out/$NAME"
   cp "$WORK/$NAME/run.log" "$OUT/run.log" 2>/dev/null || true
+  # 把 agent 写在工作目录里的产物一并收进 out/：agent 按仓库相对路径写产物，
+  # 会落在工作目录的镜像路径 $WORK/$NAME/handoff/inbox-claudecode/out/$NAME/ 下，
+  # 只拷 run.log 的话产物永远留在容器本地、推不回仓库（2026-11-14 两次小试都栽在这）。
+  if [ -d "$WORK/$NAME/handoff/inbox-claudecode/out/$NAME" ]; then
+    cp "$WORK/$NAME/handoff/inbox-claudecode/out/$NAME/"* "$OUT/" 2>/dev/null || true
+  fi
+  for f in "$WORK/$NAME"/*; do
+    case "$f" in
+      */PROMPT.md|*/run.log) ;;
+      *) [ -f "$f" ] && cp "$f" "$OUT/" 2>/dev/null || true ;;
+    esac
+  done
   if [ "$RC" -eq 0 ]; then
-    printf 'status: done\ntook_minutes: %s\n' "$MINS" > "$OUT/DONE.md"
+    # agent 自己写了 DONE.md 就保留它（只补一行用时），不要用轮询器的两行版覆盖，
+    # 否则产物清单和自查内容全丢。
+    if [ -f "$OUT/DONE.md" ] && grep -q '^status: done' "$OUT/DONE.md" 2>/dev/null; then
+      printf 'took_minutes: %s\n' "$MINS" >> "$OUT/DONE.md"
+    else
+      printf 'status: done\ntook_minutes: %s\n' "$MINS" > "$OUT/DONE.md"
+    fi
     sed -i 's/^status: claimed/status: done/' "$TASK"
     git add "$TASK" "$OUT" 2>/dev/null
     git commit -qm "claudecode done $NAME (${MINS}m)" 2>/dev/null || true
@@ -121,6 +139,7 @@ while true; do
     signal build-done "$NAME" "已完成，用时约 ${MINS} 分钟，结果在 $OUT"
     log "任务完成：$NAME（${MINS} 分钟）"
   else
+    rm -f "$OUT/DONE.md"
     printf 'status: failed\ntook_minutes: %s\nexit_code: %s\nsee: run.log\n' "$MINS" "$RC" > "$OUT/FAILED.md"
     sed -i 's/^status: claimed/status: failed/' "$TASK"
     git add "$TASK" "$OUT" 2>/dev/null
